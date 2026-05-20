@@ -56,6 +56,7 @@ function drawVisualizer() {
 // ─── Player ───────────────────────────────────────────────────
 const Player = (() => {
   const audio = new Audio();
+  audio.crossOrigin = 'anonymous';
   audio.volume = State.volume;
   let vizInit = false;
 
