@@ -273,8 +273,8 @@ async function openPlaylistDetail(id) {
 function bindSongRowEvents(container) {
   // Dùng jQuery event delegation
   $(container)
-    // Double click → phát
-    .on('dblclick', '.song-row', function() {
+    // Click → phát
+    .on('click', '.song-row', function() {
       const id   = $(this).data('id');
       const song = State.songs.find(s => s.id === id) || State.queue.find(s => s.id === id);
       if (!song) return;

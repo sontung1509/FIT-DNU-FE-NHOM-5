@@ -6,8 +6,8 @@
 // ── Cloudinary config ─────────────────────────────────────────
 // Điền thông tin tài khoản Cloudinary của bạn vào đây:
 const CLOUDINARY = {
-  cloudName:    '',          // VD: 'my-cloud'
-  uploadPreset: '',          // VD: 'playlistmaker_unsigned'
+  cloudName:    'dupj3qqho', // ✅ đã cấu hình
+  uploadPreset: 'playlistmaker', // ✅ đã cấu hình
 };
 
 // ── State ─────────────────────────────────────────────────────

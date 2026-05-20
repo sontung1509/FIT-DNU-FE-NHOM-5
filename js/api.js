@@ -57,8 +57,24 @@ const API = (() => {
 
   // ─── Seed dữ liệu mẫu ─────────────────────────────────────
   async function seed() {
-    // Kiểm tra đã seed chưa (tránh spam API)
-    if (localStorage.getItem(LOCAL.seeded)) return;
+    if (localStorage.getItem(LOCAL.seeded)) {
+      // Kiểm tra nếu data cũ không có url → reset và seed lại
+      try {
+        const songs = await getSongs();
+        const hasUrl = songs.some(s => s.url);
+        if (songs.length > 0 && !hasUrl) {
+          console.log('🔄 Data cũ không có URL nhạc, đang reset...');
+          // Xóa toàn bộ bài hát cũ
+          await Promise.all(songs.map(s => request('/songs/' + s.id, { method: 'DELETE' }).catch(() => {})));
+          const playlists = await getPlaylists();
+          await Promise.all(playlists.map(p => request('/playlists/' + p.id, { method: 'DELETE' }).catch(() => {})));
+          localStorage.removeItem(LOCAL.seeded);
+          localStorage.removeItem(LOCAL.history);
+        } else {
+          return;
+        }
+      } catch(e) { return; }
+    }
 
     try {
       const songs = await getSongs();
@@ -70,18 +86,18 @@ const API = (() => {
       console.log('🌱 Đang seed dữ liệu mẫu lên MockAPI...');
 
       const DEMO_SONGS = [
-        { title:'Neon Pulse',         artist:'Synthwave Rex',   album:'Midnight Drive',   duration:214, plays:1200000, genre:'Electronic', cover:'0' },
-        { title:'Blinding Lights',    artist:'Echo Chamber',    album:'After Hours',       duration:200, plays:3400000, genre:'Pop',         cover:'1' },
-        { title:'Velvet Underground', artist:'Lo-fi Beats',     album:'Study Vibes',       duration:185, plays:890000,  genre:'Lo-fi',       cover:'2' },
-        { title:'Purple Rain Dance',  artist:'Violet Dusk',     album:'Spectrum',          duration:238, plays:670000,  genre:'R&B',         cover:'3' },
-        { title:'Cosmic Drift',       artist:'Astral Project',  album:'Outer Space',       duration:312, plays:2100000, genre:'Ambient',     cover:'4' },
-        { title:'Tokyo Nights',       artist:'City Pop Stars',  album:'Urban Legends',     duration:196, plays:1560000, genre:'City Pop',    cover:'5' },
-        { title:'Glass Heart',        artist:'Indie Rose',      album:'Fragile Things',    duration:224, plays:430000,  genre:'Indie',       cover:'0' },
-        { title:'Midnight Groove',    artist:'Funk Factory',    album:'Groove Station',    duration:260, plays:780000,  genre:'Funk',        cover:'1' },
-        { title:'Ethereal Sky',       artist:'Dream Weaver',    album:'Cloud Nine',        duration:198, plays:340000,  genre:'Dream Pop',   cover:'2' },
-        { title:'Bass Drop 9000',     artist:'EDM Crew',        album:'Festival Hits',     duration:175, plays:5600000, genre:'EDM',         cover:'3' },
-        { title:'Acoustic Morning',   artist:'Calm Strings',    album:'Sunrise Sessions',  duration:203, plays:920000,  genre:'Acoustic',    cover:'4' },
-        { title:'Retrowave Highway',  artist:'Outrun Boy',      album:'Neon Roads',        duration:287, plays:1830000, genre:'Retrowave',   cover:'5' },
+        { title:'Neon Pulse',         artist:'Synthwave Rex',   album:'Midnight Drive',   duration:214, plays:1200000, genre:'Electronic', cover:'0', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'  },
+        { title:'Blinding Lights',    artist:'Echo Chamber',    album:'After Hours',       duration:200, plays:3400000, genre:'Pop',         cover:'1', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'  },
+        { title:'Velvet Underground', artist:'Lo-fi Beats',     album:'Study Vibes',       duration:185, plays:890000,  genre:'Lo-fi',       cover:'2', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'  },
+        { title:'Purple Rain Dance',  artist:'Violet Dusk',     album:'Spectrum',          duration:238, plays:670000,  genre:'R&B',         cover:'3', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'  },
+        { title:'Cosmic Drift',       artist:'Astral Project',  album:'Outer Space',       duration:312, plays:2100000, genre:'Ambient',     cover:'4', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3'  },
+        { title:'Tokyo Nights',       artist:'City Pop Stars',  album:'Urban Legends',     duration:196, plays:1560000, genre:'City Pop',    cover:'5', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3'  },
+        { title:'Glass Heart',        artist:'Indie Rose',      album:'Fragile Things',    duration:224, plays:430000,  genre:'Indie',       cover:'0', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3'  },
+        { title:'Midnight Groove',    artist:'Funk Factory',    album:'Groove Station',    duration:260, plays:780000,  genre:'Funk',        cover:'1', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3'  },
+        { title:'Ethereal Sky',       artist:'Dream Weaver',    album:'Cloud Nine',        duration:198, plays:340000,  genre:'Dream Pop',   cover:'2', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3'  },
+        { title:'Bass Drop 9000',     artist:'EDM Crew',        album:'Festival Hits',     duration:175, plays:5600000, genre:'EDM',         cover:'3', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3' },
+        { title:'Acoustic Morning',   artist:'Calm Strings',    album:'Sunrise Sessions',  duration:203, plays:920000,  genre:'Acoustic',    cover:'4', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3' },
+        { title:'Retrowave Highway',  artist:'Outrun Boy',      album:'Neon Roads',        duration:287, plays:1830000, genre:'Retrowave',   cover:'5', url:'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3' },
       ];
 
       // Tạo tuần tự để tránh rate limit
@@ -139,20 +155,22 @@ const API = (() => {
     return { ...s, cover: resolveCover(s) };
   }
 
+  // Chỉ strip base64 (quá dài), giữ lại URL https:// bình thường
+  function sanitizeCover(cover) {
+    if (!cover) return coverIndex(0);
+    if (cover.startsWith('data:')) return coverIndex(0); // base64 → index
+    return cover; // https:// URL hoặc index 0-5 → giữ nguyên
+  }
+
   async function createSong(data) {
     const payload = { plays: 0, ...data };
-    // Nếu cover là base64 dài → chuyển thành index
-    if (payload.cover && payload.cover.length > 10) {
-      payload.cover = coverIndex(0);
-    }
+    payload.cover = sanitizeCover(payload.cover);
     return request('/songs', { method:'POST', body: JSON.stringify(payload) });
   }
 
   async function updateSong(id, data) {
     const payload = { ...data };
-    if (payload.cover && payload.cover.length > 10) {
-      payload.cover = coverIndex(0);
-    }
+    if (payload.cover) payload.cover = sanitizeCover(payload.cover);
     return request('/songs/' + id, { method:'PUT', body: JSON.stringify(payload) });
   }
 
@@ -214,13 +232,10 @@ const API = (() => {
       cover: coverIndex(Math.random() * 6 | 0),
       ...data,
     };
-    // songs phải là JSON string để MockAPI lưu được
     if (Array.isArray(payload.songs)) {
       payload.songs = JSON.stringify(payload.songs);
     }
-    if (payload.cover && payload.cover.length > 10) {
-      payload.cover = coverIndex(0);
-    }
+    if (payload.cover) payload.cover = sanitizeCover(payload.cover);
     return request('/playlists', { method:'POST', body: JSON.stringify(payload) });
   }
 
@@ -229,9 +244,7 @@ const API = (() => {
     if (Array.isArray(payload.songs)) {
       payload.songs = JSON.stringify(payload.songs);
     }
-    if (payload.cover && payload.cover.length > 10) {
-      payload.cover = coverIndex(0);
-    }
+    if (payload.cover) payload.cover = sanitizeCover(payload.cover);
     return request('/playlists/' + id, { method:'PUT', body: JSON.stringify(payload) });
   }
 
@@ -277,7 +290,12 @@ const API = (() => {
     const results = await Promise.all(
       ids.map(id => getSongById(id).catch(() => null))
     );
-    return results.filter(Boolean);
+    const valid = results.filter(Boolean);
+    // Dọn history: xóa các ID đã 404
+    const validIds = new Set(valid.map(s => s.id));
+    const cleanHistory = history.filter(h => validIds.has(h.songId));
+    if (cleanHistory.length !== history.length) writeLocal(LOCAL.history, cleanHistory);
+    return valid;
   }
 
   // ════════════════════════════════════════════════════════
@@ -316,9 +334,15 @@ const API = (() => {
 
   async function logout() { clearSession(); }
 
+  // ─── Reset seed (dùng khi muốn seed lại từ đầu) ──────────
+  function resetSeed() {
+    localStorage.removeItem(LOCAL.seeded);
+    console.log('🔄 Đã reset seed flag. Reload trang để seed lại.');
+  }
+
   // ─── Public interface ─────────────────────────────────────
   return {
-    seed,
+    seed, resetSeed,
     getSongs, getSongById, createSong, updateSong, deleteSong, incrementPlay,
     getPlaylists, getPlaylistById, createPlaylist, updatePlaylist, deletePlaylist,
     addSongToPlaylist, removeSongFromPlaylist,
