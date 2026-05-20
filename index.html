@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="PlaylistMaker — Tạo và quản lý danh sách phát nhạc cá nhân." />
+  <title>PlaylistMaker 🎵</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">🎵</div>
+      <span class="logo-text">PlaylistMaker</span>
+    </div>
+
+    <nav class="nav-section">
+      <div class="nav-section-label">Khám phá</div>
+      <button class="nav-link active" data-section="#hero-section">
+        <span class="nav-icon">🏠</span> Trang chủ
+      </button>
+      <button class="nav-link" data-section="#trending-section">
+        <span class="nav-icon">🔥</span> Trending
+      </button>
+      <button class="nav-link" data-section="#playlists-section">
+        <span class="nav-icon">🎶</span> Playlists
+      </button>
+      <button class="nav-link" data-section="#recent-section">
+        <span class="nav-icon">⏱</span> Gần đây
+      </button>
+    </nav>
+
+    <nav class="nav-section">
+      <div class="nav-section-label">Thư viện</div>
+      <a class="nav-link" href="admin.html">
+        <span class="nav-icon">⚙️</span> Quản trị
+      </a>
+      <button class="nav-link" id="sidebar-create-pl-btn">
+        <span class="nav-icon">＋</span> Tạo playlist
+      </button>
+    </nav>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Playlist của bạn</div>
+      <ul class="sidebar-pl-list" id="sidebar-playlists"></ul>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN CONTENT ══════════════════════════════════════ -->
+  <main class="main-content" id="main-content">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+        <div class="search-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="search-input"
+            class="form-control search-input"
+            placeholder="Tìm kiếm bài hát, nghệ sĩ…"
+            autocomplete="off" />
+        </div>
+        <div class="d-flex align-items-center gap-2 ms-auto">
+          <a class="btn btn-outline-accent btn-sm" href="admin.html">Admin ↗</a>
+          <button class="btn btn-accent btn-ripple" id="topbar-create-pl-btn">＋ Playlist</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section id="hero-section">
+      <div class="hero-banner">
+        <div>
+          <div class="hero-eyebrow">🎧 Nghe nhạc không giới hạn</div>
+          <h1 class="hero-title">Âm nhạc của bạn,<br><span>theo cách của bạn</span></h1>
+          <p class="hero-sub">Tạo playlist cá nhân, kéo thả bài hát, thưởng thức mọi lúc mọi nơi.</p>
+          <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-accent btn-ripple" onclick="document.getElementById('trending-section').scrollIntoView({behavior:'smooth'})">
+              ▶ Khám phá ngay
+            </button>
+            <button class="btn btn-outline-accent" id="hero-create-pl-btn">＋ Tạo playlist</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trending Songs -->
+    <section id="trending-section" class="mt-4">
+      <div class="section-header d-flex align-items-center justify-content-between">
+        <div class="section-title"><span class="title-dot"></span> 🔥 Trending Songs</div>
+        <span class="section-link">Kéo bài hát vào playlist →</span>
+      </div>
+      <div class="song-list-header hide-sm">
+        <span>#</span><span></span><span>Tiêu đề</span>
+        <span>Album</span><span>Lượt nghe</span><span>Thời lượng</span>
+        <span></span><span></span>
+      </div>
+      <div id="trending-songs"></div>
+    </section>
+
+    <!-- Playlists Grid -->
+    <section id="playlists-section" class="mt-4">
+      <div class="section-header d-flex align-items-center justify-content-between">
+        <div class="section-title"><span class="title-dot"></span> 🎶 Danh sách phát</div>
+        <button class="btn btn-outline-accent btn-sm" id="sec-create-pl-btn">＋ Tạo mới</button>
+      </div>
+      <div class="playlists-grid" id="playlists-grid"></div>
+    </section>
+
+    <!-- Recently Played -->
+    <section id="recent-section" class="mt-4 mb-5">
+      <div class="section-header">
+        <div class="section-title"><span class="title-dot"></span> ⏱ Đã nghe gần đây</div>
+      </div>
+      <div id="recently-played"></div>
+    </section>
+
+  </main>
+
+  <!-- ══ PLAYER BAR ════════════════════════════════════════ -->
+  <footer class="player-bar" id="player-bar">
+    <div class="player-track">
+      <img id="player-cover" src="" alt="Album art" onerror="this.style.display='none'">
+      <div>
+        <div id="player-title">—</div>
+        <div id="player-artist">—</div>
+      </div>
+    </div>
+
+    <div class="player-controls">
+      <div class="player-btns">
+        <button id="prev-btn" title="Bài trước">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        </button>
+        <button id="play-pause-btn" title="Play/Pause">
+          <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        </button>
+        <button id="next-btn" title="Bài tiếp">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+        </button>
+      </div>
+      <div class="progress-row">
+        <span class="time-label" id="current-time">0:00</span>
+        <div id="progress-bar"></div>
+        <span class="time-label" id="duration">0:00</span>
+      </div>
+    </div>
+
+    <div class="player-extras">
+      <canvas id="visualizer-canvas" width="120" height="36"></canvas>
+      <div class="volume-wrap">
+        <span class="vol-icon">🔊</span>
+        <input type="range" id="volume-slider" min="0" max="100" value="80" />
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /app-shell -->
+
+
+<!-- ══ MODAL: Playlist Detail ══════════════════════════════ -->
+<div class="modal fade" id="playlist-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-pl-tag">Playlist</div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-pl-hero">
+          <img id="modal-pl-cover" src="" alt="">
+          <div>
+            <h2 id="modal-pl-name"></h2>
+            <p id="modal-pl-desc" class="text-secondary small"></p>
+            <div class="modal-pl-stats">
+              <span id="modal-pl-count"></span>
+              <span>·</span>
+              <span id="modal-pl-plays"></span>
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-accent btn-ripple" id="modal-play-all">▶ Phát tất cả</button>
+            </div>
+          </div>
+        </div>
+        <div id="modal-pl-songs"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Create Playlist ══════════════════════════════ -->
+<div class="modal fade" id="create-playlist-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">✨ Tạo Playlist mới</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="create-pl-form">
+          <div class="mb-3">
+            <label class="form-label">Tên playlist <span class="text-danger">*</span></label>
+            <input type="text" id="pl-name-input" class="form-control" placeholder="VD: Chill Vibes…" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Mô tả</label>
+            <input type="text" id="pl-desc-input" class="form-control" placeholder="Mô tả ngắn…" />
+          </div>
+          <button type="submit" class="btn btn-accent btn-ripple w-100">Tạo Playlist</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add to Playlist ══════════════════════════════ -->
+<div class="modal fade" id="add-to-playlist-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">🎵 Thêm vào Playlist</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="add-pl-list" class="add-pl-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- jQuery -->
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<!-- App scripts -->
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/main.js"></script>
+
+<script>
+  // Gộp tất cả nút "Tạo playlist" về 1 handler dùng Bootstrap modal
+  $(document).ready(function() {
+    $('#sidebar-create-pl-btn, #topbar-create-pl-btn, #hero-create-pl-btn, #sec-create-pl-btn').on('click', function() {
+      new bootstrap.Modal(document.getElementById('create-playlist-modal')).show();
+    });
+  });
+</script>
+</body>
+</html>
