@@ -65,7 +65,13 @@ const Player = (() => {
     State.currentIndex = State.queue.findIndex(s => s.id === song.id);
     audio.src = song.url || '';
     renderPlayerUI(song);
-    if (autoplay) play();
+    $id('player-bar').classList.add('player-active');
+    if (autoplay && song.url) play();
+    else if (!song.url) {
+      State.isPlaying = false;
+      updatePlayBtn();
+      Utils.toast('⚠️ Bài hát này chưa có file nhạc', 'warning');
+    }
     API.incrementPlay(song.id);
   }
 
@@ -142,7 +148,12 @@ function renderSongRow(song, idx) {
   return `
   <div class="song-row fade-in" data-id="${song.id}" data-idx="${idx}"
        draggable="true" style="animation-delay:${idx * 0.04}s">
-    <div class="song-num">${idx + 1}</div>
+    <div class="song-num-wrap">
+      <span class="song-num">${idx + 1}</span>
+      <button class="song-play-btn" data-id="${song.id}" title="Phát">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+    </div>
     <img class="song-cover" src="${song.cover}"
          onerror="this.src='${Utils.albumPlaceholder(idx)}'"
          alt="${Utils.escapeHtml(song.title)}">
@@ -231,6 +242,7 @@ async function loadPlaylists() {
   }
 }
 
+// [FIX #3] Merge bài recently played vào State.songs để bindSongRowEvents tìm được
 async function loadRecentlyPlayed() {
   const container = $id('recently-played');
   if (!container) return;
@@ -238,7 +250,13 @@ async function loadRecentlyPlayed() {
   container.innerHTML = songs.length
     ? songs.map(renderSongRow).join('')
     : `<div class="empty-state"><div class="empty-icon">⏱</div><p>Chưa có lịch sử phát.</p></div>`;
-  if (songs.length) bindSongRowEvents(container);
+  if (songs.length) {
+    // Thêm các bài chưa có trong State.songs vào để find() trong bindSongRowEvents hoạt động
+    songs.forEach(s => {
+      if (!State.songs.find(x => x.id === s.id)) State.songs.push(s);
+    });
+    bindSongRowEvents(container);
+  }
 }
 
 // ─── Playlist Detail ──────────────────────────────────────────
@@ -259,7 +277,14 @@ async function openPlaylistDetail(id) {
   songContainer.innerHTML = valid.length
     ? valid.map(renderSongRow).join('')
     : `<div class="empty-state"><div class="empty-icon">🎵</div><p>Playlist chưa có bài hát.</p></div>`;
-  if (valid.length) bindSongRowEvents(songContainer);
+
+  if (valid.length) {
+    // [FIX #2] Đăng ký bài playlist vào State.songs để find() hoạt động đúng
+    valid.forEach(s => {
+      if (!State.songs.find(x => x.id === s.id)) State.songs.push(s);
+    });
+    bindSongRowEvents(songContainer);
+  }
 
   $id('modal-play-all').onclick = () => {
     State.queue = valid;
@@ -274,12 +299,25 @@ async function openPlaylistDetail(id) {
 function bindSongRowEvents(container) {
   // Dùng jQuery event delegation
   $(container)
-    // Click → phát
-    .on('click', '.song-row', function() {
-      const id   = $(this).data('id');
-      const song = State.songs.find(s => s.id === id) || State.queue.find(s => s.id === id);
+    // Click nút play ▶
+    .on('click', '.song-play-btn', function(e) {
+      e.stopPropagation();
+      const id   = String($(this).data('id'));
+      // [FIX #5] String() tránh lỗi so sánh number vs string khi jQuery tự coerce data-id
+      const song = State.songs.find(s => String(s.id) === id)
+                || State.queue.find(s => String(s.id) === id);
       if (!song) return;
-      State.queue = State.songs.length ? State.songs : State.queue;
+      if (!State.queue.find(s => String(s.id) === id)) State.queue = State.songs;
+      Player.load(song);
+    })
+    // Click vào row → phát
+    .on('click', '.song-row', function() {
+      const id   = String($(this).data('id'));
+      // [FIX #5] String() tránh lỗi so sánh number vs string
+      const song = State.songs.find(s => String(s.id) === id)
+                || State.queue.find(s => String(s.id) === id);
+      if (!song) return;
+      if (!State.queue.find(s => String(s.id) === id)) State.queue = State.songs;
       Player.load(song);
     })
     // Yêu thích
@@ -298,12 +336,31 @@ function bindSongRowEvents(container) {
     });
 
   // Drag & drop (native)
+  // [FIX #5] draggable="true" chặn sự kiện click → disable mặc định,
+  // chỉ bật khi chuột thực sự di chuyển để phân biệt drag vs click.
   container.querySelectorAll('.song-row').forEach(row => {
+    row.setAttribute('draggable', false);
+
+    row.addEventListener('mousedown', () => {
+      const enableDrag = () => row.setAttribute('draggable', true);
+      row.addEventListener('mousemove', enableDrag, { once: true });
+
+      window.addEventListener('mouseup', () => {
+        row.removeEventListener('mousemove', enableDrag);
+        // Reset sau một tick để dragend xử lý xong trước
+        setTimeout(() => row.setAttribute('draggable', false), 0);
+      }, { once: true });
+    });
+
     row.addEventListener('dragstart', e => {
+      if (row.getAttribute('draggable') !== 'true') { e.preventDefault(); return; }
       e.dataTransfer.setData('songId', row.dataset.id);
       row.classList.add('dragging');
     });
-    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      row.setAttribute('draggable', false);
+    });
   });
 }
 
@@ -368,17 +425,29 @@ function initPlayerBar() {
   if (bar) {
     bar.addEventListener('mousedown', e => {
       State.isDragging = true;
+
       const move = ev => {
-        const ratio = Math.min(1, Math.max(0, ev.offsetX / bar.offsetWidth));
+        const rect  = bar.getBoundingClientRect();
+        const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
         bar.style.setProperty('--prog', ratio * 100 + '%');
       };
+
       bar.addEventListener('mousemove', move);
-      window.addEventListener('mouseup', ev => {
-        const ratio = Math.min(1, Math.max(0, ev.offsetX / bar.offsetWidth));
+
+      // [FIX #1] Dùng clientX + getBoundingClientRect thay vì offsetX
+      // [FIX #4] Cleanup cả khi thả chuột ngoài trang (mouseleave trên window)
+      const cleanup = ev => {
+        const rect  = bar.getBoundingClientRect();
+        const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
         Player.seek(ratio);
         State.isDragging = false;
         bar.removeEventListener('mousemove', move);
-      }, { once: true });
+        window.removeEventListener('mouseup',    cleanup);
+        window.removeEventListener('mouseleave', cleanup);
+      };
+
+      window.addEventListener('mouseup',    cleanup, { once: true });
+      window.addEventListener('mouseleave', cleanup, { once: true });
     });
   }
 

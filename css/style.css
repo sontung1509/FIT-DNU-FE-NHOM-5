@@ -766,3 +766,30 @@ h1,h2,h3,h4,h5 { font-family: var(--font-head); line-height: 1.2; font-weight: 7
   .player-extras { display:none; }
   .stats-grid { grid-template-columns:repeat(2,1fr); }
 }
+
+/* ── Song row play button ── */
+.song-num-wrap {
+  position: relative;
+  width: 28px;
+  display: flex; align-items: center; justify-content: center;
+}
+.song-play-btn {
+  display: none;
+  position: absolute;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
+  align-items: center; justify-content: center;
+  color: #fff;
+  transition: transform var(--transition), background var(--transition);
+}
+.song-play-btn svg { width: 10px; height: 10px; margin-left: 1px; }
+.song-play-btn:hover { background: var(--accent-light); transform: scale(1.1); }
+.song-row:hover .song-num { display: none; }
+.song-row:hover .song-play-btn { display: flex; }
+.song-row.song-playing .song-num { display: none; }
+.song-row.song-playing .song-play-btn {
+  display: flex;
+  background: var(--accent);
+}
