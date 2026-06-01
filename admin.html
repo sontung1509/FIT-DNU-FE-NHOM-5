@@ -242,6 +242,21 @@
 <!-- App scripts -->
 <script src="js/utils.js"></script>
 <script src="js/api.js"></script>
+<script>
+  // Kiểm tra auth trước khi load admin
+  (function() {
+    const session = API.getSession();
+    if (!session) {
+      window.location.href = 'login.html';
+      throw new Error('Redirect to login');
+    }
+    if (session.role !== 'admin') {
+      alert('Bạn không có quyền truy cập trang này!');
+      window.location.href = 'index.html';
+      throw new Error('Not admin');
+    }
+  })();
+</script>
 <script src="js/admin.js"></script>
 </body>
 </html>

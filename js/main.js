@@ -180,10 +180,11 @@ function renderSongRow(song, idx) {
 // ─── Render: Playlist Card ────────────────────────────────────
 function renderPlaylistCard(pl) {
   const count = pl.songs?.length || 0;
+  const cover = pl.displayCover || pl.cover;
   return `
   <div class="playlist-card fade-in" data-id="${pl.id}">
     <div class="playlist-card-img-wrap">
-      <img src="${pl.cover}" alt="${Utils.escapeHtml(pl.name)}"
+      <img src="${cover}" alt="${Utils.escapeHtml(pl.name)}"
            onerror="this.src='${Utils.albumPlaceholder(0)}'">
       <button class="playlist-play-overlay" data-id="${pl.id}">
         <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
@@ -197,19 +198,66 @@ function renderPlaylistCard(pl) {
 }
 
 // ─── Section Loaders ──────────────────────────────────────────
+function renderSongCard(song, idx) {
+  const fav = API.getFavorites().includes(song.id);
+  return `
+  <div class="sc-song-card fade-in" data-id="${song.id}" data-idx="${idx}" style="animation-delay:${idx*0.05}s">
+    <div class="sc-song-card-img-wrap">
+      <img src="${song.cover}" onerror="this.src='${Utils.albumPlaceholder(idx)}'" alt="${Utils.escapeHtml(song.title)}">
+      <button class="sc-song-card-play" data-id="${song.id}">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+    </div>
+    <div class="sc-song-card-body">
+      <div class="sc-song-card-title">${Utils.escapeHtml(song.title)}</div>
+      <div class="sc-song-card-artist">${Utils.escapeHtml(song.artist || '')}</div>
+      <div class="sc-song-card-meta">
+        <span>${Utils.formatPlays(song.plays)} lượt</span>
+        <div class="d-flex gap-1">
+          <button class="fav-btn ${fav ? 'fav-active' : ''}" data-song="${song.id}" title="Yêu thích">
+            <svg viewBox="0 0 24 24" fill="${fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+          <button class="add-pl-btn" data-song="${song.id}" title="Thêm vào playlist">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 async function loadTrendingSongs() {
   const container = $id('trending-songs');
   if (!container) return;
-  container.innerHTML = Utils.skeletonCards(6, true);
+  container.innerHTML = Utils.skeletonCards(6);
 
   const songs = await API.getSongs(State.searchQuery);
   State.songs = songs;
   State.queue  = songs;
 
   container.innerHTML = songs.length
-    ? songs.map(renderSongRow).join('')
+    ? songs.map(renderSongCard).join('')
     : `<div class="empty-state"><div class="empty-icon">🎵</div><p>Không tìm thấy bài hát nào.</p></div>`;
 
+  // Bind events
+  container.querySelectorAll('.sc-song-card-play').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const song = State.songs.find(s => s.id === btn.dataset.id);
+      if (song) Player.load(song);
+    });
+  });
+  container.querySelectorAll('.sc-song-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const song = State.songs.find(s => s.id === card.dataset.id);
+      if (song) Player.load(song);
+    });
+  });
+  // Fav & add-to-playlist still work
   bindSongRowEvents(container);
 }
 
@@ -221,28 +269,41 @@ async function loadPlaylists() {
   const playlists = await API.getPlaylists();
   State.playlists = playlists;
 
-  grid.innerHTML = playlists.length
-    ? playlists.map(renderPlaylistCard).join('')
-    : `<div class="empty-state"><div class="empty-icon">🎶</div><p>Chưa có playlist nào.</p></div>`;
+  if (!playlists.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">🎶</div><p>Chưa có playlist nào.</p></div>`;
+    bindPlaylistCardEvents(grid);
+    return;
+  }
 
+  // Lấy ảnh bài hát đầu tiên của mỗi playlist
+  const playlistsWithCover = await Promise.all(playlists.map(async pl => {
+    const songs = Array.isArray(pl.songs) ? pl.songs : [];
+    if (songs.length > 0) {
+      try {
+        const firstSong = await API.getSongById(songs[0]);
+        if (firstSong?.cover) return { ...pl, displayCover: firstSong.cover };
+      } catch(e) {}
+    }
+    return { ...pl, displayCover: pl.cover };
+  }));
+
+  grid.innerHTML = playlistsWithCover.map(renderPlaylistCard).join('');
   bindPlaylistCardEvents(grid);
 
-  // Sidebar list (dùng jQuery)
+  // Sidebar list
   const $sideList = $('#sidebar-playlists');
   if ($sideList.length) {
-    $sideList.html(playlists.map(p => `
+    $sideList.html(playlistsWithCover.map(p => `
       <li class="sidebar-pl-item" data-id="${p.id}">
-        <img src="${p.cover}" onerror="this.src='${Utils.albumPlaceholder(0)}'">
+        <img src="${p.displayCover}" onerror="this.src='${Utils.albumPlaceholder(0)}'">
         <span>${Utils.escapeHtml(p.name)}</span>
       </li>`).join(''));
-
     $sideList.find('.sidebar-pl-item').on('click', function() {
       openPlaylistDetail($(this).data('id'));
     });
   }
 }
 
-// [FIX #3] Merge bài recently played vào State.songs để bindSongRowEvents tìm được
 async function loadRecentlyPlayed() {
   const container = $id('recently-played');
   if (!container) return;
@@ -250,13 +311,7 @@ async function loadRecentlyPlayed() {
   container.innerHTML = songs.length
     ? songs.map(renderSongRow).join('')
     : `<div class="empty-state"><div class="empty-icon">⏱</div><p>Chưa có lịch sử phát.</p></div>`;
-  if (songs.length) {
-    // Thêm các bài chưa có trong State.songs vào để find() trong bindSongRowEvents hoạt động
-    songs.forEach(s => {
-      if (!State.songs.find(x => x.id === s.id)) State.songs.push(s);
-    });
-    bindSongRowEvents(container);
-  }
+  if (songs.length) bindSongRowEvents(container);
 }
 
 // ─── Playlist Detail ──────────────────────────────────────────
@@ -277,14 +332,7 @@ async function openPlaylistDetail(id) {
   songContainer.innerHTML = valid.length
     ? valid.map(renderSongRow).join('')
     : `<div class="empty-state"><div class="empty-icon">🎵</div><p>Playlist chưa có bài hát.</p></div>`;
-
-  if (valid.length) {
-    // [FIX #2] Đăng ký bài playlist vào State.songs để find() hoạt động đúng
-    valid.forEach(s => {
-      if (!State.songs.find(x => x.id === s.id)) State.songs.push(s);
-    });
-    bindSongRowEvents(songContainer);
-  }
+  if (valid.length) bindSongRowEvents(songContainer);
 
   $id('modal-play-all').onclick = () => {
     State.queue = valid;
@@ -302,22 +350,18 @@ function bindSongRowEvents(container) {
     // Click nút play ▶
     .on('click', '.song-play-btn', function(e) {
       e.stopPropagation();
-      const id   = String($(this).data('id'));
-      // [FIX #5] String() tránh lỗi so sánh number vs string khi jQuery tự coerce data-id
-      const song = State.songs.find(s => String(s.id) === id)
-                || State.queue.find(s => String(s.id) === id);
+      const id   = $(this).data('id');
+      const song = State.songs.find(s => s.id === id) || State.queue.find(s => s.id === id);
       if (!song) return;
-      if (!State.queue.find(s => String(s.id) === id)) State.queue = State.songs;
+      State.queue = State.songs.length ? State.songs : State.queue;
       Player.load(song);
     })
     // Click vào row → phát
     .on('click', '.song-row', function() {
-      const id   = String($(this).data('id'));
-      // [FIX #5] String() tránh lỗi so sánh number vs string
-      const song = State.songs.find(s => String(s.id) === id)
-                || State.queue.find(s => String(s.id) === id);
+      const id   = $(this).data('id');
+      const song = State.songs.find(s => s.id === id) || State.queue.find(s => s.id === id);
       if (!song) return;
-      if (!State.queue.find(s => String(s.id) === id)) State.queue = State.songs;
+      State.queue = State.songs.length ? State.songs : State.queue;
       Player.load(song);
     })
     // Yêu thích
@@ -336,31 +380,12 @@ function bindSongRowEvents(container) {
     });
 
   // Drag & drop (native)
-  // [FIX #5] draggable="true" chặn sự kiện click → disable mặc định,
-  // chỉ bật khi chuột thực sự di chuyển để phân biệt drag vs click.
   container.querySelectorAll('.song-row').forEach(row => {
-    row.setAttribute('draggable', false);
-
-    row.addEventListener('mousedown', () => {
-      const enableDrag = () => row.setAttribute('draggable', true);
-      row.addEventListener('mousemove', enableDrag, { once: true });
-
-      window.addEventListener('mouseup', () => {
-        row.removeEventListener('mousemove', enableDrag);
-        // Reset sau một tick để dragend xử lý xong trước
-        setTimeout(() => row.setAttribute('draggable', false), 0);
-      }, { once: true });
-    });
-
     row.addEventListener('dragstart', e => {
-      if (row.getAttribute('draggable') !== 'true') { e.preventDefault(); return; }
       e.dataTransfer.setData('songId', row.dataset.id);
       row.classList.add('dragging');
     });
-    row.addEventListener('dragend', () => {
-      row.classList.remove('dragging');
-      row.setAttribute('draggable', false);
-    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
   });
 }
 
@@ -425,29 +450,17 @@ function initPlayerBar() {
   if (bar) {
     bar.addEventListener('mousedown', e => {
       State.isDragging = true;
-
       const move = ev => {
-        const rect  = bar.getBoundingClientRect();
-        const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+        const ratio = Math.min(1, Math.max(0, ev.offsetX / bar.offsetWidth));
         bar.style.setProperty('--prog', ratio * 100 + '%');
       };
-
       bar.addEventListener('mousemove', move);
-
-      // [FIX #1] Dùng clientX + getBoundingClientRect thay vì offsetX
-      // [FIX #4] Cleanup cả khi thả chuột ngoài trang (mouseleave trên window)
-      const cleanup = ev => {
-        const rect  = bar.getBoundingClientRect();
-        const ratio = Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width));
+      window.addEventListener('mouseup', ev => {
+        const ratio = Math.min(1, Math.max(0, ev.offsetX / bar.offsetWidth));
         Player.seek(ratio);
         State.isDragging = false;
         bar.removeEventListener('mousemove', move);
-        window.removeEventListener('mouseup',    cleanup);
-        window.removeEventListener('mouseleave', cleanup);
-      };
-
-      window.addEventListener('mouseup',    cleanup, { once: true });
-      window.addEventListener('mouseleave', cleanup, { once: true });
+      }, { once: true });
     });
   }
 

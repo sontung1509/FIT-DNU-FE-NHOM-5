@@ -316,23 +316,63 @@ const API = (() => {
   }
 
   // ════════════════════════════════════════════════════════
-  // AUTH — localStorage session
+  // AUTH — MockAPI users + localStorage session
   // ════════════════════════════════════════════════════════
   function getSession()   { return JSON.parse(localStorage.getItem(LOCAL.session)||'null'); }
   function setSession(u)  { localStorage.setItem(LOCAL.session, JSON.stringify(u)); }
   function clearSession() { localStorage.removeItem(LOCAL.session); }
 
+  function hashPassword(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (Math.imul(31, hash) + str.charCodeAt(i)) | 0;
+    }
+    return hash.toString(36);
+  }
+
+  async function register(name, email, password) {
+    const existing = await request('/users?email=' + encodeURIComponent(email)).catch(() => []);
+    if (existing.length > 0) throw new Error('Email này đã được đăng ký');
+    const user = await request('/users', {
+      method: 'POST',
+      body: JSON.stringify({
+        name, email,
+        password: hashPassword(password),
+        role: 'user',
+        avatar: '',
+        createdAt: new Date().toISOString(),
+      }),
+    });
+    const sessionUser = { id: user.id, name: user.name, email: user.email, role: user.role };
+    setSession(sessionUser);
+    return sessionUser;
+  }
+
   async function login(email, password) {
-    await new Promise(r => setTimeout(r, 400));
     if (email === 'admin@playlistmaker.app' && password === 'admin123') {
       const user = { id:'u0', name:'Admin', email, role:'admin' };
       setSession(user);
       return user;
     }
-    throw new Error('Email hoac mat khau khong dung');
+    const users = await request('/users?email=' + encodeURIComponent(email)).catch(() => []);
+    if (!users.length) throw new Error('Email không tồn tại');
+    const user = users[0];
+    if (user.password !== hashPassword(password)) throw new Error('Mật khẩu không đúng');
+    const sessionUser = { id: user.id, name: user.name, email: user.email, role: user.role || 'user' };
+    setSession(sessionUser);
+    return sessionUser;
   }
 
   async function logout() { clearSession(); }
+
+  async function updateProfile(id, data) {
+    const payload = { ...data };
+    if (payload.password) payload.password = hashPassword(payload.password);
+    const updated = await request('/users/' + id, { method: 'PUT', body: JSON.stringify(payload) });
+    const session = getSession();
+    if (session?.id === id) setSession({ ...session, name: updated.name, avatar: updated.avatar });
+    return updated;
+  }
 
   // ─── Reset seed (dùng khi muốn seed lại từ đầu) ──────────
   function resetSeed() {
@@ -349,6 +389,7 @@ const API = (() => {
     getFavorites, toggleFavorite,
     getRecentlyPlayed,
     getStats,
-    getSession, login, logout,
+    getSession, login, logout, register, updateProfile,
   };
 })();
+// PATCH: replace auth

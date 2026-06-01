@@ -26,16 +26,18 @@ const $all = sel => document.querySelectorAll(sel);
 // ════════════════════════════════════════════════════════════
 function checkAuth() {
   const user = API.getSession();
-  if (user) {
-    // Đã login → hiển thị tên
-    const nameEl = $id('admin-name');
-    if (nameEl) nameEl.textContent = user.name || user.email;
-    return true;
+  if (!user) {
+    window.location.href = 'login.html';
+    return false;
   }
-
-  // Chưa login → hiển thị overlay đăng nhập
-  showLoginOverlay();
-  return false;
+  if (user.role !== 'admin') {
+    Utils.toast('Bạn không có quyền truy cập!', 'error');
+    setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+    return false;
+  }
+  const nameEl = $id('admin-name');
+  if (nameEl) nameEl.textContent = user.name || user.email;
+  return true;
 }
 
 function showLoginOverlay() {
