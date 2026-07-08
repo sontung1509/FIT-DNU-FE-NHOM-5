@@ -14,12 +14,20 @@ const CLOUDINARY = {
 const AdminState = {
   songs:        [],
   playlists:    [],
+  artists:      [],
   editingSongId:     null,   // null = thêm mới, string = đang sửa
   editingPlaylistId: null,
+  editingArtistName: null,
 };
 
 const $id  = id  => document.getElementById(id);
 const $all = sel => document.querySelectorAll(sel);
+
+// Ảnh bìa playlist = ảnh bài hát đầu tiên (fallback: cover playlist)
+function playlistDisplayCover(p, songMap) {
+  const first = Array.isArray(p.songs) && p.songs.length ? songMap.get(String(p.songs[0])) : null;
+  return (first && first.cover) ? first.cover : p.cover;
+}
 
 // ════════════════════════════════════════════════════════════
 // LOGIN GATE
@@ -106,6 +114,7 @@ function initTabs() {
     // Lazy load khi chuyển tab
     if (tab === 'songs')     loadSongsTable();
     if (tab === 'playlists') loadPlaylistsTable();
+    if (tab === 'artists')   loadArtistsTable();
     if (tab === 'dashboard') loadDashboard();
   });
 }
@@ -128,8 +137,8 @@ async function loadDashboard() {
     // Genre chart
     renderGenreChart(stats.songs);
 
-    // Top playlists table
-    renderTopPlaylists(stats.playlists);
+    // Top playlists table (ảnh bìa = bài hát đầu tiên)
+    renderTopPlaylists(stats.playlists, stats.songs);
 
   } catch (err) {
     console.error('Dashboard error:', err);
@@ -161,10 +170,11 @@ function renderGenreChart(songs) {
     </div>`).join('') || '<p style="color:var(--text-muted);font-size:.85rem">Không có dữ liệu</p>';
 }
 
-function renderTopPlaylists(playlists) {
+function renderTopPlaylists(playlists, songs = []) {
   const tbody = $id('top-playlists-table');
   if (!tbody) return;
 
+  const songMap = new Map(songs.map(s => [String(s.id), s]));
   const sorted = [...playlists].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 5);
 
   tbody.innerHTML = sorted.length
@@ -172,7 +182,7 @@ function renderTopPlaylists(playlists) {
         <tr>
           <td style="color:var(--text-muted)">${i + 1}</td>
           <td>
-            <img class="tbl-cover" src="${p.cover}" onerror="this.src='${Utils.albumPlaceholder(i)}'" alt="">
+            <img class="tbl-cover" src="${playlistDisplayCover(p, songMap)}" onerror="this.src='${Utils.albumPlaceholder(i)}'" alt="">
             ${Utils.escapeHtml(p.name)}
           </td>
           <td>${Array.isArray(p.songs) ? p.songs.length : 0}</td>
@@ -213,7 +223,7 @@ function renderSongsTable(songs) {
       <td style="font-weight:600">${Utils.escapeHtml(s.title)}</td>
       <td>${Utils.escapeHtml(s.artist || '—')}</td>
       <td>${Utils.escapeHtml(s.album  || '—')}</td>
-      <td><span style="background:rgba(255,85,0,0.12);color:var(--accent);padding:2px 8px;border-radius:999px;font-size:.75rem">${Utils.escapeHtml(s.genre || '—')}</span></td>
+      <td><span style="background:rgba(255,255,255,0.1);color:var(--text-primary);padding:2px 8px;border-radius:999px;font-size:.75rem">${Utils.escapeHtml(s.genre || '—')}</span></td>
       <td>${Utils.formatDuration(s.duration)}</td>
       <td>${Utils.formatPlays(s.plays)}</td>
       <td>
@@ -344,15 +354,16 @@ async function loadPlaylistsTable() {
   tbody.innerHTML = `<tr><td colspan="6" class="tbl-loading">Đang tải…</td></tr>`;
 
   try {
-    const playlists = await API.getPlaylists();
+    const [playlists, songs] = await Promise.all([API.getPlaylists(), API.getSongs()]);
     AdminState.playlists = playlists;
-    renderPlaylistsTable(playlists);
+    AdminState.songs = songs;
+    renderPlaylistsTable(playlists, songs);
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="6" class="tbl-loading" style="color:#ef4444">Lỗi tải dữ liệu</td></tr>`;
   }
 }
 
-function renderPlaylistsTable(playlists) {
+function renderPlaylistsTable(playlists, songs = []) {
   const tbody = $id('playlists-tbody');
   if (!tbody) return;
 
@@ -361,9 +372,11 @@ function renderPlaylistsTable(playlists) {
     return;
   }
 
+  const songMap = new Map(songs.map(s => [String(s.id), s]));
+
   tbody.innerHTML = playlists.map(p => `
     <tr>
-      <td><img class="tbl-cover" src="${p.cover}" onerror="this.src='${Utils.albumPlaceholder(0)}'" alt=""></td>
+      <td><img class="tbl-cover" src="${playlistDisplayCover(p, songMap)}" onerror="this.src='${Utils.albumPlaceholder(0)}'" alt=""></td>
       <td style="font-weight:600">${Utils.escapeHtml(p.name)}</td>
       <td style="color:var(--text-secondary)">${Utils.escapeHtml(p.description || '—')}</td>
       <td>${Array.isArray(p.songs) ? p.songs.length : 0} bài</td>
@@ -465,6 +478,145 @@ async function deletePlaylist(id) {
 }
 
 // ════════════════════════════════════════════════════════════
+// ARTISTS (suy ra từ trường artist của bài hát)
+// ════════════════════════════════════════════════════════════
+function groupArtists(songs) {
+  const map = new Map();
+  songs.forEach(s => {
+    const name = (s.artist || '').trim();
+    if (!name) return;
+    if (!map.has(name)) {
+      map.set(name, { name, avatar: s.artistAvatar || s.cover, hasAvatar: !!s.artistAvatar, count: 0, plays: 0 });
+    }
+    const a = map.get(name);
+    a.count++;
+    a.plays += Number(s.plays) || 0;
+    if (!a.hasAvatar && s.artistAvatar) { a.avatar = s.artistAvatar; a.hasAvatar = true; }
+  });
+  return Array.from(map.values()).sort((a, b) => b.plays - a.plays);
+}
+
+async function loadArtistsTable(query = '') {
+  const tbody = $id('artists-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="5" class="tbl-loading">Đang tải…</td></tr>`;
+  try {
+    const songs = await API.getSongs();
+    AdminState.songs = songs;
+    let artists = groupArtists(songs);
+    if (query) {
+      const q = query.toLowerCase();
+      artists = artists.filter(a => a.name.toLowerCase().includes(q));
+    }
+    AdminState.artists = artists;
+    renderArtistsTable(artists);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="tbl-loading" style="color:#ef4444">Lỗi tải dữ liệu</td></tr>`;
+  }
+}
+
+function renderArtistsTable(artists) {
+  const tbody = $id('artists-tbody');
+  if (!tbody) return;
+
+  if (!artists.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="tbl-loading">Không có nghệ sĩ nào</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = artists.map(a => `
+    <tr>
+      <td><img class="tbl-cover" style="border-radius:50%" src="${a.avatar}" onerror="this.src='${Utils.albumPlaceholder(0)}'" alt=""></td>
+      <td style="font-weight:600">${Utils.escapeHtml(a.name)}</td>
+      <td>${a.count} bài</td>
+      <td>${Utils.formatPlays(a.plays)}</td>
+      <td>
+        <button class="btn-tbl-edit" data-name="${Utils.escapeHtml(a.name)}" title="Sửa">✏️</button>
+      </td>
+    </tr>`).join('');
+
+  tbody.querySelectorAll('.btn-tbl-edit').forEach(btn =>
+    btn.addEventListener('click', () => openArtistModal(btn.dataset.name)));
+}
+
+function openArtistModal(name) {
+  AdminState.editingArtistName = name;
+  const artist = (AdminState.artists || []).find(a => a.name === name);
+
+  $id('artist-modal-title').textContent = 'Sửa nghệ sĩ: ' + name;
+  $id('artist-form').reset();
+  $id('artist-save-status').textContent = '';
+  $id('artist-name-input').value = name;
+
+  if (artist) {
+    // chỉ đổ URL vào ô nếu là ảnh tuỳ chỉnh (http); ảnh placeholder thì bỏ trống
+    if (artist.hasAvatar && artist.avatar && artist.avatar.startsWith('http')) {
+      $id('artist-avatar-url-input').value = artist.avatar;
+    }
+    showCoverPreview(artist.avatar, 'artist-avatar-preview');
+  } else {
+    $id('artist-avatar-preview').style.display = 'none';
+  }
+
+  Utils.openModal('artist-modal');
+}
+
+async function saveArtist(e) {
+  e.preventDefault();
+  const oldName = AdminState.editingArtistName;
+  const newName = $id('artist-name-input').value.trim();
+  if (!newName) { Utils.toast('Tên nghệ sĩ không được để trống', 'error'); return; }
+
+  const btn    = $id('artist-submit-btn');
+  const status = $id('artist-save-status');
+  btn.disabled = true; btn.textContent = 'Đang lưu…';
+
+  try {
+    // Ảnh: ưu tiên file upload, sau đó tới URL
+    let avatarUrl = $id('artist-avatar-url-input').value.trim() || null;
+    const file = $id('artist-avatar-file').files[0];
+    if (file) {
+      status.textContent = '⬆️ Đang upload ảnh…';
+      avatarUrl = await uploadToCloudinary(file, 'image');
+    }
+
+    const patch = {};
+    if (newName !== oldName) patch.artist = newName;
+    if (avatarUrl)           patch.artistAvatar = avatarUrl;
+
+    if (!Object.keys(patch).length) {
+      Utils.toast('Chưa có thay đổi nào', 'info');
+      Utils.closeModal('artist-modal');
+      return;
+    }
+
+    const songs = (AdminState.songs || []).filter(s => (s.artist || '') === oldName);
+    if (!songs.length) throw new Error('Không tìm thấy bài hát của nghệ sĩ này');
+
+    status.textContent = `Đang cập nhật ${songs.length} bài hát…`;
+    for (const s of songs) {
+      await API.updateSong(s.id, patch);
+    }
+
+    Utils.toast('✅ Đã cập nhật nghệ sĩ!', 'success');
+    Utils.closeModal('artist-modal');
+    loadArtistsTable();
+    loadDashboard();
+  } catch (err) {
+    Utils.toast('Lỗi: ' + (err.message || 'Không lưu được'), 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Lưu nghệ sĩ';
+    status.textContent = '';
+  }
+}
+
+function initArtistSearch() {
+  $('#artists-search').on('input', Utils.debounce(function () {
+    loadArtistsTable($(this).val().trim());
+  }, 400));
+}
+
+// ════════════════════════════════════════════════════════════
 // CLOUDINARY UPLOAD
 // ════════════════════════════════════════════════════════════
 async function uploadToCloudinary(file, resourceType = 'auto') {
@@ -527,6 +679,18 @@ function initCoverPreviews() {
   $id('pl-cover-url-input')?.addEventListener('input', Utils.debounce(function () {
     showCoverPreview(this.value.trim(), 'pl-cover-preview');
   }, 600));
+
+  // Artist avatar — file input
+  $id('artist-avatar-file')?.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    showCoverPreview(URL.createObjectURL(file), 'artist-avatar-preview');
+  });
+
+  // Artist avatar — URL input
+  $id('artist-avatar-url-input')?.addEventListener('input', Utils.debounce(function () {
+    showCoverPreview(this.value.trim(), 'artist-avatar-preview');
+  }, 600));
 }
 
 // ════════════════════════════════════════════════════════════
@@ -567,6 +731,7 @@ function initAdmin() {
   checkCloudinaryConfig();
   initTabs();
   initSongSearch();
+  initArtistSearch();
   initLogout();
   initCoverPreviews();
 
@@ -576,6 +741,7 @@ function initAdmin() {
   // Form submit handlers
   $id('song-form')?.addEventListener('submit', saveSong);
   $id('playlist-form-admin')?.addEventListener('submit', savePlaylist);
+  $id('artist-form')?.addEventListener('submit', saveArtist);
 
   // Add buttons
   $id('add-song-btn')?.addEventListener('click',     () => openSongModal());
