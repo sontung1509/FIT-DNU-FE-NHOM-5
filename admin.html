@@ -12,7 +12,7 @@
 </head>
 <body>
 
-<div class="d-flex">
+<div class="d-flex admin-shell">
 
   <!-- ══ ADMIN SIDEBAR ════════════════════════════════════ -->
   <aside class="admin-sidebar">
@@ -29,6 +29,9 @@
     </button>
     <button class="admin-tab" data-tab="playlists">
       <span class="tab-icon">🎶</span> Playlists
+    </button>
+    <button class="admin-tab" data-tab="artists">
+      <span class="tab-icon">🎤</span> Nghệ sĩ
     </button>
 
     <div class="mt-auto p-3 border-top border-secondary">
@@ -66,21 +69,45 @@
       </div>
 
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-icon">🎵</div><div class="stat-value" id="stat-songs">—</div><div class="stat-label">Bài hát</div></div>
-        <div class="stat-card"><div class="stat-icon">🎶</div><div class="stat-value" id="stat-playlists">—</div><div class="stat-label">Playlists</div></div>
-        <div class="stat-card"><div class="stat-icon">▶️</div><div class="stat-value" id="stat-plays">—</div><div class="stat-label">Lượt nghe</div></div>
-        <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-value" id="stat-top" style="font-size:1.1rem">—</div><div class="stat-label">Playlist nổi bật</div></div>
+        <div class="bezel stat-card-bezel reveal">
+          <div class="bezel-inner stat-card">
+            <div class="stat-icon-wrap"><div class="stat-icon">🎵</div></div>
+            <div class="stat-value" id="stat-songs">—</div>
+            <div class="stat-label">Bài hát</div>
+          </div>
+        </div>
+        <div class="bezel stat-card-bezel reveal">
+          <div class="bezel-inner stat-card">
+            <div class="stat-icon-wrap"><div class="stat-icon">🎶</div></div>
+            <div class="stat-value" id="stat-playlists">—</div>
+            <div class="stat-label">Playlists</div>
+          </div>
+        </div>
+        <div class="bezel stat-card-bezel reveal">
+          <div class="bezel-inner stat-card">
+            <div class="stat-icon-wrap"><div class="stat-icon">▶️</div></div>
+            <div class="stat-value" id="stat-plays">—</div>
+            <div class="stat-label">Lượt nghe</div>
+          </div>
+        </div>
+        <div class="bezel stat-card-bezel reveal">
+          <div class="bezel-inner stat-card">
+            <div class="stat-icon-wrap"><div class="stat-icon">🏆</div></div>
+            <div class="stat-value" id="stat-top" style="font-size:1.1rem">—</div>
+            <div class="stat-label">Playlist nổi bật</div>
+          </div>
+        </div>
       </div>
 
       <div class="row g-3 mt-1">
         <div class="col-md-6">
-          <div class="chart-card">
+          <div class="chart-card reveal">
             <h3>🎸 Thể loại</h3>
             <div id="genre-chart"></div>
           </div>
         </div>
         <div class="col-md-6">
-          <div class="chart-card">
+          <div class="chart-card reveal">
             <h3>🏅 Top Playlists</h3>
             <table class="admin-table w-100">
               <thead><tr><th>#</th><th>Tên</th><th>Bài</th><th>Lượt nghe</th></tr></thead>
@@ -97,7 +124,7 @@
         <h5 class="mb-0">🎵 Quản lý bài hát</h5>
         <button class="btn btn-accent btn-ripple" id="add-song-btn">＋ Thêm bài hát</button>
       </div>
-      <div class="table-card">
+      <div class="table-card reveal">
         <div class="table-toolbar">
           <h6 class="mb-0">Danh sách bài hát</h6>
           <input type="search" id="songs-search" class="form-control ms-auto" style="max-width:240px" placeholder="🔍 Tìm kiếm…" />
@@ -119,12 +146,29 @@
         <h5 class="mb-0">🎶 Quản lý Playlists</h5>
         <button class="btn btn-accent btn-ripple" id="add-playlist-btn">＋ Tạo playlist</button>
       </div>
-      <div class="table-card">
+      <div class="table-card reveal">
         <div class="table-toolbar"><h6 class="mb-0">Danh sách Playlist</h6></div>
         <div class="table-responsive">
           <table class="admin-table w-100">
             <thead><tr><th>Ảnh</th><th>Tên</th><th>Mô tả</th><th>Số bài</th><th>Lượt nghe</th><th>Hành động</th></tr></thead>
             <tbody id="playlists-tbody"><tr><td colspan="6" class="tbl-loading">Đang tải…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═ ARTISTS ══════════════════════════════════════════ -->
+    <div class="admin-page" data-page="artists">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="mb-0">🎤 Quản lý nghệ sĩ</h5>
+        <input type="search" id="artists-search" class="form-control" style="max-width:240px" placeholder="🔍 Tìm nghệ sĩ…" />
+      </div>
+      <div class="table-card">
+        <div class="table-toolbar"><h6 class="mb-0">Danh sách nghệ sĩ</h6></div>
+        <div class="table-responsive">
+          <table class="admin-table w-100">
+            <thead><tr><th>Ảnh</th><th>Tên nghệ sĩ</th><th>Số bài</th><th>Lượt nghe</th><th>Hành động</th></tr></thead>
+            <tbody id="artists-tbody"><tr><td colspan="5" class="tbl-loading">Đang tải…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -235,6 +279,39 @@
 </div>
 
 
+<!-- ══ MODAL: Artist Edit ══════════════════════════════════ -->
+<div class="modal fade" id="artist-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="artist-modal-title">Sửa nghệ sĩ</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="artist-form">
+          <div class="mb-3">
+            <label class="form-label">Tên nghệ sĩ <span class="text-danger">*</span></label>
+            <input type="text" id="artist-name-input" class="form-control" placeholder="Tên nghệ sĩ" />
+          </div>
+          <div class="mb-3">
+            <div class="upload-group">
+              <div class="upload-label">🖼 Ảnh nghệ sĩ</div>
+              <label class="form-label">Upload từ máy → Cloudinary</label>
+              <input type="file" id="artist-avatar-file" class="form-control" accept="image/*" />
+              <div class="upload-or">hoặc dán URL</div>
+              <input type="url" id="artist-avatar-url-input" class="form-control" placeholder="https://res.cloudinary.com/…" />
+              <img id="artist-avatar-preview" class="img-preview" alt="Preview" />
+            </div>
+          </div>
+          <div id="artist-save-status" class="small text-secondary mb-2"></div>
+          <p class="small text-secondary">Lưu ý: đổi tên sẽ cập nhật tất cả bài hát của nghệ sĩ này.</p>
+          <button type="submit" id="artist-submit-btn" class="btn btn-accent btn-ripple w-100">Lưu nghệ sĩ</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <!-- jQuery -->
@@ -258,5 +335,6 @@
   })();
 </script>
 <script src="js/admin.js"></script>
+<script src="js/reveal.js"></script>
 </body>
 </html>
